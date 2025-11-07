@@ -504,7 +504,7 @@ class CarController():
     if self.mode_change_timer > 0:
       self.mode_change_timer -= 1
 
-    if pcm_cancel_cmd and self.longcontrol:
+    if pcm_cancel_cmd and self.longcontrol and self.params.get_bool("OpkrVariableCruise"):
       can_sends.append(create_clu11(self.packer, frame, CS.clu11, Buttons.CANCEL, clu11_speed, CS.CP.sccBus))
 
     # CS.current_cruise_speed <--- current normal cruise control speed, maybe (need to get this from carstate)
@@ -512,7 +512,7 @@ class CarController():
     # self.sm['longitudinalPlan'].speeds <--- array of desired speeds
     # can_sends.append(create_clu11(self.packer, frame, CS.clu11, Buttons.RES_ACCEL)) <--- how to send a button press
 
-    if CS.current_cruise_speed <= 25:
+    if CS.current_cruise_speed <= 25 and self.params.get_bool("OpkrVariableCruise"):
       can_sends.append(create_clu11(self.packer, frame, CS.clu11, Buttons.RES_ACCEL))
 
     if CS.out.brakeLights and CS.out.vEgo == 0 and not CS.out.cruiseState.standstill:
@@ -783,11 +783,13 @@ class CarController():
         accel = clip(accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX)
         self.aq_value = accel
         self.aq_value_raw = aReqValue
-        can_sends.append(create_scc11(self.packer, frame, set_speed, lead_visible, self.scc_live, self.dRel, self.vRel, self.yRel, 
-         self.car_fingerprint, CS.out.vEgo * CV.MS_TO_KPH, self.acc_standstill, self.gapsettingdance, self.stopped, radar_recog, CS.scc11))
-        if (CS.brake_check or CS.cancel_check) and self.car_fingerprint != CAR.NIRO_EV_DE:
-          can_sends.append(create_scc12(self.packer, accel, enabled, self.scc_live, CS.out.gasPressed, 1, 
-           CS.out.stockAeb, self.car_fingerprint, CS.out.vEgo * CV.MS_TO_KPH, self.stopped, self.acc_standstill, radar_recog, self.scc12_cnt, CS.scc12))
+        # Only send SCC11/SCC12 if OpkrVariableCruise is enabled
+        if self.params.get_bool("OpkrVariableCruise"):
+          can_sends.append(create_scc11(self.packer, frame, set_speed, lead_visible, self.scc_live, self.dRel, self.vRel, self.yRel, 
+           self.car_fingerprint, CS.out.vEgo * CV.MS_TO_KPH, self.acc_standstill, self.gapsettingdance, self.stopped, radar_recog, CS.scc11))
+          if (CS.brake_check or CS.cancel_check) and self.car_fingerprint != CAR.NIRO_EV_DE:
+            can_sends.append(create_scc12(self.packer, accel, enabled, self.scc_live, CS.out.gasPressed, 1, 
+             CS.out.stockAeb, self.car_fingerprint, CS.out.vEgo * CV.MS_TO_KPH, self.stopped, self.acc_standstill, radar_recog, self.scc12_cnt, CS.scc12))
         else:
           can_sends.append(create_scc12(self.packer, accel, enabled, self.scc_live, CS.out.gasPressed, CS.out.brakePressed, 
            CS.out.stockAeb, self.car_fingerprint, CS.out.vEgo * CV.MS_TO_KPH, self.stopped, self.acc_standstill, radar_recog, self.scc12_cnt, CS.scc12))
@@ -799,9 +801,11 @@ class CarController():
         if self.radar_disabled_conf:
           if CS.CP.fcaBus == -1:
             can_sends.append(create_fca12(self.packer))
-        can_sends.append(create_scc13(self.packer, CS.scc13))
+        if self.params.get_bool("OpkrVariableCruise"):
+          can_sends.append(create_scc13(self.packer, CS.scc13))
       if frame % 50 == 0:
-        can_sends.append(create_scc42a(self.packer))
+        if self.params.get_bool("OpkrVariableCruise"):
+          can_sends.append(create_scc42a(self.packer))
     elif (CS.CP.sccBus != 0 or self.radarDisableActivated) and self.longcontrol:
       if self.radar_disabled_conf:
         self.fca11alivecnt = CS.fca11init["CR_FCA_Alive"]
